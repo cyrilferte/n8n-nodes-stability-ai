@@ -1,19 +1,19 @@
 {
-  "name": "n8n-nodes-<...>",
-  "version": "0.1.0",
-  "description": "",
+  "name": "n8n-nodes-stability-ai",
+  "version": "0.1.4",
+  "description": "Stability AI nodes for n8n",
   "keywords": [
     "n8n-community-node-package"
   ],
   "license": "MIT",
   "homepage": "",
   "author": {
-    "name": "",
-    "email": ""
+    "name": "cyril ferte",
+    "email": "cyril@fertec.fr"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/<...>/n8n-nodes-<...>.git"
+    "url": "https://github.com/cyrilferte/n8n-nodes-stability-ai/"
   },
   "main": "index.js",
   "scripts": {
@@ -30,11 +30,11 @@
   "n8n": {
     "n8nNodesApiVersion": 1,
     "credentials": [
-      "dist/credentials/ExampleCredentialsApi.credentials.js",
+      "dist/credentials/StabilityAiApi.credentials.js",
       "dist/credentials/HttpBinApi.credentials.js"
     ],
     "nodes": [
-      "dist/nodes/ExampleNode/ExampleNode.node.js",
+      "dist/nodes/StabilityAiNode/StabilityAiNode.node.js",
       "dist/nodes/HttpBin/HttpBin.node.js"
     ]
   },
