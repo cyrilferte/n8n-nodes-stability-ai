@@ -1,11 +1,11 @@
 import {
-	IBinaryKeyData, IDataObject,
+	IBinaryKeyData,
 	IExecuteFunctions,
 	INodeExecutionData,
 	INodeType,
 	INodeTypeDescription,
-	NodeOperationError,
 } from 'n8n-workflow';
+import {MoreOptions} from "./StabilityAiNode.type";
 
 export class StabilityAiNode implements INodeType {
 	description: INodeTypeDescription = {
@@ -164,29 +164,14 @@ export class StabilityAiNode implements INodeType {
 		],
 	};
 
-	// The function below is responsible for actually doing whatever this node
-	// is supposed to do. In this case, we're just appending the `myString` property
-	// with whatever the user has entered.
-	// You can make async calls and use `await`.
-	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
-		let model = this.getNodeParameter('model', 0) as string;
-		let text_prompt = this.getNodeParameter('text_prompt', 0) as string;
-		let negative_text_prompt = this.getNodeParameter('negative_text_prompt', 0) as string;
-		let moreOptions = this.getNodeParameter('moreOptions', 0) as IDataObject;
 
-		let style = moreOptions?.style as string;
-		let steps = moreOptions?.steps as number;
-		let cfg_scale = moreOptions?.cfgScale as number;
-		let seed = moreOptions?.seed as number;
-		if (!model) {
-			throw new NodeOperationError(this.getNode(), 'Please select a model.');
-		}
-		if (!text_prompt) {
-			throw new NodeOperationError(this.getNode(), 'Please enter a prompt.');
-		}
-		if (steps && steps < 10) {
-			throw new NodeOperationError(this.getNode(), 'Steps must be more than 10.');
-		}
+	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
+		const [model, text_prompt, negative_text_prompt, moreOptions] = [
+			this.getNodeParameter('model', 0) as string,
+			this.getNodeParameter('text_prompt', 0) as string,
+			this.getNodeParameter('negative_text_prompt', 0) as string,
+			this.getNodeParameter('moreOptions', 0) as MoreOptions,
+		]
 
 		const body = {
 			steps: 40,
@@ -211,24 +196,22 @@ export class StabilityAiNode implements INodeType {
 			});
 		}
 
-		if (style) {
-			body.style = style;
+		if (moreOptions?.style) {
+			body.style = moreOptions.style;
 		}
 
-		if (steps) {
-			body.steps = steps;
+		if (moreOptions?.steps) {
+			body.steps = moreOptions.steps;
 		}
 
-		if (cfg_scale) {
-        body.cfg_scale = cfg_scale;
-    }
-
-		if (seed) {
-			body.seed = seed;
+		if (moreOptions?.cfgScale) {
+			body.cfg_scale = moreOptions.cfgScale;
 		}
 
+		if (moreOptions?.seed) {
+			body.seed = moreOptions.seed;
+		}
 
-		// Make an API request with requestWithAuthentication
 		const response = await this.helpers.requestWithAuthentication.call(this, 'stabilityAiApi', {
 			body,
 			method: 'POST',
@@ -239,15 +222,11 @@ export class StabilityAiNode implements INodeType {
 			},
 		});
 
-		// Map data to n8n data
 		const base64_image = response.artifacts[0].base64;
 		const output_seed = response.artifacts[0].seed;
-
-		// base64 image to blob
 		const blob = Buffer.from(base64_image, 'base64');
 		const binary: IBinaryKeyData = {};
-
-		binary!['data'] = await this.helpers.prepareBinaryData.call(
+		binary['data'] = await this.helpers.prepareBinaryData.call(
 			this,
 			blob,
 			`nik_${output_seed}.png`,
