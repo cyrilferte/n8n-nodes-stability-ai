@@ -35,3 +35,5 @@ U
 %credentials/HttpBinApi.credentials.ts,1/a/1afc735d4f5c979fd3fbfa543036cedb35b39e0a
 Y
 )credentials/StabilityAiApi.credentials.ts,b/a/ba51a2c6e55bb57bf6fd198ddd0bc5599c2d2b79
+B
+README_TEMPLATE.md,6/7/67dfa839330bb00a796bdc3681372728b6ea0cdf

@@ -152,6 +152,13 @@ export class StabilityAiNode implements INodeType {
 						default: 5,
 						description: 'Guidance Scale (4 - 14 typically)',
 					},
+					{
+						displayName: 'Seed',
+						name: 'seed',
+						type: 'number',
+						default: 0,
+						description: 'Seed for randomness',
+					},
 				],
 			},
 		],
@@ -170,6 +177,7 @@ export class StabilityAiNode implements INodeType {
 		let style = moreOptions?.style as string;
 		let steps = moreOptions?.steps as number;
 		let cfg_scale = moreOptions?.cfgScale as number;
+		let seed = moreOptions?.seed as number;
 		if (!model) {
 			throw new NodeOperationError(this.getNode(), 'Please select a model.');
 		}
@@ -215,6 +223,10 @@ export class StabilityAiNode implements INodeType {
         body.cfg_scale = cfg_scale;
     }
 
+		if (seed) {
+			body.seed = seed;
+		}
+
 
 		// Make an API request with requestWithAuthentication
 		const response = await this.helpers.requestWithAuthentication.call(this, 'stabilityAiApi', {
@@ -229,7 +241,7 @@ export class StabilityAiNode implements INodeType {
 
 		// Map data to n8n data
 		const base64_image = response.artifacts[0].base64;
-		const seed = response.artifacts[0].seed;
+		const output_seed = response.artifacts[0].seed;
 
 		// base64 image to blob
 		const blob = Buffer.from(base64_image, 'base64');
@@ -238,7 +250,7 @@ export class StabilityAiNode implements INodeType {
 		binary!['data'] = await this.helpers.prepareBinaryData.call(
 			this,
 			blob,
-			`nik_${seed}.png`,
+			`nik_${output_seed}.png`,
 			'image/png',
 		);
 		const json = response.artifacts;
