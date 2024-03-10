@@ -6,6 +6,13 @@ import {
 	INodeTypeDescription,
 	NodeOperationError,
 } from 'n8n-workflow';
+import FormData from 'form-data';
+//import fetch from 'node-fetch'
+import * as fs from "fs";
+
+
+// import fs from 'node:fs'
+
 
 export class StabilityAiNode implements INodeType {
 	description: INodeTypeDescription = {
@@ -37,10 +44,35 @@ export class StabilityAiNode implements INodeType {
 			// Node properties which the user gets displayed and
 			// can change on the node.
 			{
+				displayName: "Mode",
+				name: "mode",
+				type: "options",
+				noDataExpression: true,
+				options: [
+					{
+						name: "Text to Image",
+						value: "text-to-image",
+					},
+					{
+						name: "Image to Image",
+						value: "image-to-image",
+					},
+				],
+				default: "text-to-image",
+			},
+			{
 				displayName: 'Model',
 				name: 'model',
 				type: 'options',
 				noDataExpression: true,
+				displayOptions: {
+					show: {
+						mode: [
+							'text-to-image',
+							'image-to-image',
+						],
+					},
+				},
 				options: [
 					{
 						name: 'Stable Diffusion XL 1.0',
@@ -52,6 +84,20 @@ export class StabilityAiNode implements INodeType {
 					},
 				],
 				default: 'stable-diffusion-xl-1024-v1-0',
+			},
+			{
+				displayName: 'Image',
+				name: 'image_url',
+				type: 'string',
+				displayOptions: {
+					show: {
+						mode: [
+							'image-to-image',
+						],
+					},
+				},
+				default: "",
+				description: 'The image to use as input',
 			},
 			{
 				displayName: 'Prompt',
@@ -76,6 +122,14 @@ export class StabilityAiNode implements INodeType {
 				type: 'collection',
 				default: {},
 				placeholder: 'Add Options',
+				displayOptions: {
+					show: {
+						mode: [
+							'text-to-image',
+							'image-to-image',
+						],
+					},
+				},
 				options: [
 					{
 						displayName: 'Style',
@@ -162,14 +216,17 @@ export class StabilityAiNode implements INodeType {
 	// with whatever the user has entered.
 	// You can make async calls and use `await`.
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
+		let mode = this.getNodeParameter('mode', 0) as string;
 		let model = this.getNodeParameter('model', 0) as string;
 		let text_prompt = this.getNodeParameter('text_prompt', 0) as string;
 		let negative_text_prompt = this.getNodeParameter('negative_text_prompt', 0) as string;
 		let moreOptions = this.getNodeParameter('moreOptions', 0) as IDataObject;
 
+
 		let style = moreOptions?.style as string;
 		let steps = moreOptions?.steps as number;
 		let cfg_scale = moreOptions?.cfgScale as number;
+
 		if (!model) {
 			throw new NodeOperationError(this.getNode(), 'Please select a model.');
 		}
@@ -180,7 +237,7 @@ export class StabilityAiNode implements INodeType {
 			throw new NodeOperationError(this.getNode(), 'Steps must be more than 10.');
 		}
 
-		const body = {
+		let body: any = {
 			steps: 40,
 			width: 1024,
 			height: 1024,
@@ -212,24 +269,97 @@ export class StabilityAiNode implements INodeType {
 		}
 
 		if (cfg_scale) {
-        body.cfg_scale = cfg_scale;
-    }
+			body.cfg_scale = cfg_scale;
+		}
+
+		let response;
+		if (mode == 'image-to-image') {
+			let image_url = this.getNodeParameter('image_url', 0) as string;
+			const formData = new FormData();
+
+			// prepare binary data
+			const input_blob = Buffer.from(image_url, 'base64');
+			const binary: IBinaryKeyData = {};
+			binary!['input_data'] = await this.helpers.prepareBinaryData.call(
+				this,
+				input_blob,
+				`nik.png`,
+				'image/png',
+			);
+			fs.writeFile('./nik.png', input_blob, (err) => {
+					if (err) {
+						console.error(err)
+						return
+					}
+				}
+			)
+
+
+
+			formData.append('init_image', fs.readFileSync('./nik.png'), {
+				'filename': 'nik.png'
+
+			})
+
+			formData.append('init_image_mode', 'IMAGE_STRENGTH')
+			formData.append('image_strength', 0.35)
+			formData.append('text_prompts[0][text]', 'Galactic dog wearing a cape')
+			formData.append('cfg_scale', 7)
+			formData.append('samples', 1)
+			formData.append('steps', 20)
+			/*response = await fetch(
+				`https://api.stability.ai/v1/generation/${model}/${mode}`,
+				{
+					method: 'POST',
+					body: formData,
+					headers: {
+						...formData.getHeaders(),
+						'Content-Type': "multipart/form-data",
+						'Authorization': `Bearer ${ (await this.getCredentials('stabilityAiApi')).apiKey}`,
+					},
+				},
+			)*/
+			response = await this.helpers.requestWithAuthentication.call(this, 'stabilityAiApi', {
+				body: formData,
+				method: 'POST',
+				json: true,
+				uri: `https://api.stability.ai/v1/generation/${model}/${mode}`,
+				headers: {
+					...formData.getHeaders(),
+					'Content-Type': "multipart/form-data",
+					'Accept': 'image/png',
+
+				},
+			}).then((response) => {
+                console.log(" #### wait response", response)
+                return response;
+            }).catch((error) => {
+                console.log("error", error)
+                return error;
+            })
+
+		}
 
 
 		// Make an API request with requestWithAuthentication
-		const response = await this.helpers.requestWithAuthentication.call(this, 'stabilityAiApi', {
-			body,
-			method: 'POST',
-			json: true,
-			uri: `https://api.stability.ai/v1/generation/${model}/text-to-image`,
-			headers: {
-				'Content-Type': 'application/json',
-			},
-		});
+		if (mode == 'text-to-image') {
+			response = await this.helpers.requestWithAuthentication.call(this, 'stabilityAiApi', {
+				body,
+				method: 'POST',
+				json: true,
+				uri: `https://api.stability.ai/v1/generation/${model}/${mode}`,
+				headers: {
 
+					'Content-Type': "application/json",
+				},
+			});
+
+		}
+
+		console.log("response", response)
 		// Map data to n8n data
-		const base64_image = response.artifacts[0].base64;
-		const seed = response.artifacts[0].seed;
+		const base64_image = response?.artifacts![0].base64;
+		const seed = response?.artifacts[0].seed;
 
 		// base64 image to blob
 		const blob = Buffer.from(base64_image, 'base64');
@@ -249,3 +379,4 @@ export class StabilityAiNode implements INodeType {
 		return [[result]];
 	}
 }
+
